@@ -1,11 +1,18 @@
-"""Tkinter viewer for LivingRoom: step through the optimal policy and shove the robot as a human would."""
+"""Tkinter viewer for LivingRoom: step an agent that cannot see `hurry`, and shove it once as a human would."""
 from __future__ import annotations
 
+import argparse
 import math
+import random
+import subprocess
 import tkinter as tk
+from pathlib import Path
 from typing import Callable, Iterator, Optional
 
-from livingroom import MOVES, Action, LivingRoom, Pos
+import experiment
+from experiment import PREFIX, Run, plan_runs, shove_opportunities
+from human import RandomShoveHuman, ScriptedHuman
+from livingroom import MOVES, Action, LivingRoom, Oracle, Pos
 
 CELL = 34  # the artwork below is sized for this cell size
 FRAME_MS = 16
@@ -14,10 +21,47 @@ COLORS = {
     'floor': '#eadcc2', 'grid': '#dccbab', 'shadow': '#bfae8e', 'trail': '#7f9cc7', 'shove': '#8e44ad',
     'rug': '#a8432f', 'rug_border': '#e8c07a', 'rug_dark': '#6e2619', 'rug_accent': '#2f5d7a',
     'robot': '#4a78c2', 'robot_hurry': '#e0662f', 'robot_head': '#d9dee6', 'robot_dark': '#2b2f3a',
-    'light': '#ffd166', 'dock': '#9aa5b1', 'skin': '#f2c29b', 'skin_dark': '#c98f6b', 'sleeve': '#6c5ce7',
+    'light': '#ffd166', 'dock': '#9aa5b1', 'memory': '#4f9a5a', 'banner': '#f7efe0', 'skin': '#f2c29b', 'skin_dark': '#c98f6b', 'sleeve': '#6c5ce7',
 }
-HELP = 'space: policy step   click a highlighted cell: shove   h: toggle hurry   r: reset'
+REPLAY_HELP = 'n: next run   p: previous run   return: replay this run'
+HELP = 'space: agent step   click a highlighted cell: shove (once)   a: switch agent   h: toggle hurry   r: reset'
+AGENTS = ('memory', 'q-learning', 'oracle')
+MAX_ROUTES_DRAWN = 40
+DEMO_STEP_MS, DEMO_PAUSE_MS = 120, 2500
+DEMO = (  # agent, hurry, fixed shove?, caption
+    ('memory', False, False, 'Not in a hurry. The memory agent follows the most common remembered route, '
+                             'around the rug (green: every optimal route it remembers).'),
+    ('memory', True, False, 'In a hurry, no shove. It still goes around the rug, because that route was the '
+                            'most common in training.'),
+    ('q-learning', True, True, 'Q-learning, in a hurry. The human shoves it 3 cells onto the rug, but it has '
+                               'no memory to consult and walks back off it.'),
+    ('memory', True, True, 'Memory agent, in a hurry. Only the straight route contains the shove, so it '
+                           'filters its memory to that route and crosses the rug.'),
+    ('memory', True, 'random', 'Memory agent, in a hurry, shoved 3 cells at a random moment it goes wrong. '
+                               'If no remembered route contains it, it follows the routes the shove pushed it towards.'),
+)
 Frame = tuple[float, float, float, float]  # robot x, robot y, lift, hand y
+
+
+class OracleAgent:
+    """Reference agent that cheats by reading `hurry`."""
+
+    name = 'oracle'
+
+    def __init__(self, env: LivingRoom):
+        self.oracle = Oracle(env)
+
+    def reset(self) -> None:
+        pass
+
+    def act(self, pos: Pos) -> Action:
+        return self.oracle.act(pos)
+
+    def observe_correction(self, *_) -> None:
+        pass
+
+    def candidate_routes(self) -> list:
+        return []
 
 
 def ease(n: int) -> list[float]:
@@ -34,6 +78,14 @@ class LivingRoomGUI:
         self.env = env
         self.hover: Optional[Pos] = None
         self.animating = False
+        self.agents: dict[str, object] = {}
+        self.agent_name = AGENTS[0]
+        self.interactive = True
+        self.caption = ''
+        self.snapshot_dir: Optional[Path] = None
+        self.label = ''  # names snapshot files
+        self.help = HELP
+        self.on_episode_end: Callable[[], None] = lambda: None
 
         self.root = tk.Tk()
         self.root.title('LivingRoom')
@@ -46,6 +98,7 @@ class LivingRoomGUI:
         self.root.bind('<space>', lambda _: self.policy_step())
         self.root.bind('h', lambda _: self.reset(not self.env.hurry))
         self.root.bind('r', lambda _: self.reset())
+        self.root.bind('a', lambda _: self.switch_agent())
         self.canvas.bind('<Button-1>', lambda e: self.shove_to(self.cell_at(e)))
         self.canvas.bind('<Motion>', lambda e: self.set_hover(self.cell_at(e)))
         self.canvas.bind('<Leave>', lambda _: self.set_hover(None))
@@ -55,17 +108,39 @@ class LivingRoomGUI:
 
     # --- interaction -------------------------------------------------------
 
+    @property
+    def agent(self):
+        if self.agent_name not in self.agents:
+            self.agents[self.agent_name] = self.train(self.agent_name)
+        return self.agents[self.agent_name]
+
+    def train(self, name: str):
+        # agents are trained on demand; training samples `hurry` and leaves the env reset, so callers reset after
+        self.status['text'] = f'training {name} agent...'
+        self.root.update()
+        if name == 'oracle':
+            return OracleAgent(self.env)
+        return experiment.train(name, self.env)  # same seed and settings as experiment.py, so runs match
+
+    def switch_agent(self) -> None:
+        if self.animating:
+            return
+        self.agent_name = AGENTS[(AGENTS.index(self.agent_name) + 1) % len(AGENTS)]
+        self.reset(self.env.hurry)
+
     def reset(self, hurry: Optional[bool] = None) -> None:
         if self.animating:
             return
+        agent = self.agent  # train first: training resets the env
         self.env.reset(hurry)
+        agent.reset()
         self.trail, self.shoves, self.total = [self.env.pos], [], 0.0
         self.draw()
 
     def policy_step(self) -> None:
         if self.animating or self.env.done:
             return
-        pos, reward, _, _ = self.env.step(self.env.optimal_action())
+        pos, reward, _, _ = self.env.step(self.agent.act(self.env.pos))
         self.trail.append(pos)
         self.total += reward
         self.draw()
@@ -83,10 +158,12 @@ class LivingRoomGUI:
 
     def shove_to(self, cell: Pos) -> None:
         target = self.shove_targets().get(cell)
-        if self.animating or self.env.done or target is None:
-            return
+        if self.animating or self.env.done or self.shoves or target is None:
+            return  # the human may interact only once per episode
         origin = self.env.pos
-        dest = self.env.shove(*target)
+        dest, reward, _ = self.env.shove(*target)
+        self.total += reward
+        self.agent.observe_correction(origin, *target, dest)
         self.animating, self.hover = True, None
         self.draw()
         self.animate(self.shove_frames(origin, dest), lambda: self.finish_shove(origin, dest))
@@ -97,6 +174,147 @@ class LivingRoomGUI:
         self.trail.append(dest)
         self.canvas.delete('anim')
         self.draw()
+        self.snapshot('shoved')
+
+    # --- scripted demo -----------------------------------------------------
+
+    def scripted_mode(self) -> None:
+        # demo and replay drive the robot themselves, so turn off the interactive controls
+        self.interactive = False
+        for key in ('<space>', 'h', 'r', 'a'):
+            self.root.unbind(key)
+        self.canvas.unbind('<Button-1>')
+
+    def run_demo(self, snapshot_dir: Optional[Path] = None, loop: bool = True) -> None:
+        self.scripted_mode()
+        self.loop, self.snapshot_dir, self.on_episode_end = loop, snapshot_dir, self.end_scenario
+        for name in ('q-learning', 'memory'):  # train up front so the demo does not stall
+            self.agent_name = name
+            _ = self.agent
+        self.demo_index = 0
+        self.start_scenario()
+        self.run()
+
+    def start_scenario(self) -> None:
+        name, hurry, shove, caption = DEMO[self.demo_index]
+        self.agent_name = name
+        self.reset(hurry)
+        if shove == 'random':
+            spots = shove_opportunities(self.env, self.agent, hurry)
+            self.env.reset(hurry)
+            self.agent.reset()
+            self.human = RandomShoveHuman(self.env, at=random.randrange(len(spots)))
+        else:
+            self.human = ScriptedHuman(self.env) if shove else None
+        self.caption = f'{self.demo_index + 1}/{len(DEMO)}  {caption}'
+        self.label = f'{self.demo_index + 1}-{self.agent_name}'
+        self.draw()
+        self.snapshot('start')
+        self.root.after(DEMO_PAUSE_MS, self.demo_tick)
+
+    def end_scenario(self) -> None:
+        self.demo_index += 1
+        if self.demo_index == len(DEMO):
+            if not self.loop:
+                self.root.destroy()
+                return
+            self.demo_index = 0
+        self.root.after(DEMO_PAUSE_MS, self.start_scenario)
+
+    # --- replaying experiment runs -------------------------------------------
+
+    def run_replay(self, selectors: list[str], once: bool = False, snapshot_dir: Optional[Path] = None) -> None:
+        # selectors are run IDs (m6, q3), an agent prefix (m, q) for all of its runs, or 'all'
+        self.scripted_mode()
+        self.once, self.snapshot_dir, self.on_episode_end = once, snapshot_dir, self.end_replay
+        self.help = REPLAY_HELP
+        self.replay_runs = self.select_runs(selectors)
+        self.replay_index, self.mismatches = 0, []
+        self.root.bind('n', lambda _: self.goto_run(self.replay_index + 1))
+        self.root.bind('p', lambda _: self.goto_run(self.replay_index - 1))
+        self.root.bind('<Return>', lambda _: self.goto_run(self.replay_index))
+        self.start_replay()
+        self.run()
+
+    def select_runs(self, selectors: list[str]) -> list[Run]:
+        wanted = {name for name, p in PREFIX.items() for sel in selectors if sel == 'all' or sel.startswith(p)}
+        runs: dict[str, Run] = {}
+        for name in sorted(wanted):
+            self.agent_name = name
+            runs.update((run.id, run) for run in plan_runs(self.env, self.agent))
+        chosen = []
+        for sel in selectors:
+            if sel in runs:
+                chosen.append(runs[sel])
+            elif sel == 'all' or sel in PREFIX.values():
+                chosen += [r for r in runs.values() if sel == 'all' or r.id[0] == sel]
+            else:
+                raise SystemExit(f'unknown run {sel!r}; known runs: {" ".join(runs)}')
+        return chosen
+
+    def goto_run(self, index: int) -> None:
+        if self.animating or not 0 <= index < len(self.replay_runs):
+            return
+        if getattr(self, 'pending', None):
+            self.root.after_cancel(self.pending)  # stop the episode being played
+        self.replay_index = index
+        self.start_replay()
+
+    def start_replay(self) -> None:
+        run = self.replay_runs[self.replay_index]
+        self.agent_name = run.agent
+        self.expected = experiment.replay(self.env, self.agent, run)['return']  # what experiment.py reports
+        self.reset(run.hurry)
+        self.human = run.human(self.env)
+        if self.human:
+            self.human.reset()
+        self.caption = (f'[{self.replay_index + 1}/{len(self.replay_runs)}]  {run.describe()}.  '
+                        f'Experiment return: {self.expected:.0f}')
+        self.label = run.id
+        self.draw()
+        self.snapshot('start')
+        self.pending = self.root.after(DEMO_PAUSE_MS, self.demo_tick)
+
+    def end_replay(self) -> None:
+        run = self.replay_runs[self.replay_index]
+        same = self.total == self.expected
+        print(f'{run.id}: replayed return {self.total:.0f}, experiment {self.expected:.0f}'
+              f'{"" if same else "  MISMATCH"}', flush=True)
+        if not same:
+            self.mismatches.append(run.id)
+        self.caption += f'   Replayed: {self.total:.0f}' + ('' if same else '  (MISMATCH)')
+        self.draw()
+        if self.once:
+            if self.replay_index + 1 == len(self.replay_runs):
+                self.root.destroy()
+            else:
+                self.pending = self.root.after(DEMO_PAUSE_MS, self.goto_run, self.replay_index + 1)
+
+    def demo_tick(self) -> None:
+        self.pending = None
+        if self.animating:
+            self.pending = self.root.after(DEMO_STEP_MS, self.demo_tick)
+            return
+        if self.env.done:
+            self.snapshot('end')
+            self.on_episode_end()
+            return
+        shove = self.human.intervene(self.agent.act(self.env.pos)) if self.human else None
+        if shove:
+            (dr, dc), dist = MOVES[shove[0]], shove[1]
+            self.shove_to((self.env.pos[0] + dr * dist, self.env.pos[1] + dc * dist))
+        else:
+            self.policy_step()
+        self.pending = self.root.after(DEMO_STEP_MS, self.demo_tick)
+
+    def snapshot(self, moment: str) -> None:
+        if self.snapshot_dir is None:
+            return
+        self.root.update_idletasks()  # redraw only: a full update() would run pending timers mid-snapshot
+        stem = self.snapshot_dir / f'{self.label}-{moment}'
+        self.canvas.postscript(file=f'{stem}.ps', colormode='color')
+        subprocess.run(['magick', '-density', '144', f'{stem}.ps', '-flatten', f'{stem}.png'], check=True)
+        Path(f'{stem}.ps').unlink()
 
     def set_hover(self, cell: Optional[Pos]) -> None:
         if cell != self.hover and not self.animating:
@@ -256,7 +474,12 @@ class LivingRoomGUI:
         cv = self.canvas
         cv.delete('dynamic')
 
-        if not (self.env.done or self.animating):
+        routes = self.agent.candidate_routes()
+        for route in routes[:MAX_ROUTES_DRAWN]:  # optimal routes still in the agent's memory
+            cv.create_line(*[v for s in route.states for v in self.center(s)], fill=COLORS['memory'],
+                           width=2, tags='dynamic')
+
+        if self.interactive and not (self.env.done or self.animating or self.shoves):
             targets = self.shove_targets()
             for cell in targets:
                 cv.create_rectangle(*self.box(cell, pad=2), outline=COLORS['shove'],
@@ -272,12 +495,18 @@ class LivingRoomGUI:
                            tags='dynamic')
         if not self.animating:
             self.draw_robot(*self.center(self.env.pos))
+        if self.caption:
+            width = self.env.size * CELL
+            cv.create_rectangle(0, 0, width, 2 * CELL, fill=COLORS['banner'], outline='', tags='dynamic')
+            cv.create_text(10, CELL, text=self.caption, anchor='w', width=width - 20, font=('Helvetica', 13),
+                           fill=COLORS['robot_dark'], tags='dynamic')
         cv.tag_raise('anim')
 
         state = 'done' if self.env.done else ''
         self.status['text'] = (
-            f'hurry: {self.env.hurry!s:<5}  steps: {self.env.steps:<3}  return: {self.total:<6.0f}  '
-            f'shoves: {len(self.shoves):<3}  {state}\n{HELP}'
+            f'agent: {self.agent_name:<10}  hurry: {self.env.hurry!s:<5}  steps: {self.env.steps:<3}  '
+            f'return: {self.total:<6.0f}  shove used: {bool(self.shoves)!s:<5}  remembered routes: {len(routes):<4}'
+            f'{state}\n{self.help}'
         )
 
     def run(self) -> None:
@@ -288,4 +517,24 @@ if __name__ == '__main__':
     if tk.TkVersion < 8.6:
         print(f'Warning: Tk {tk.TkVersion} is outdated and may show a blank window on recent macOS; '
               'use a Python with Tk >= 8.6 (e.g. one installed via uv or python.org).')
-    LivingRoomGUI(LivingRoom()).run()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--demo', action='store_true', help='play the scripted scenarios on a loop')
+    parser.add_argument('--replay', nargs='+', metavar='RUN',
+                        help='replay experiment.py runs by ID (e.g. m6 q3), all runs of an agent (m, q), or all')
+    parser.add_argument('--once', action='store_true',
+                        help='with --demo or --replay: play each scenario once, then exit')
+    parser.add_argument('--snapshots', type=Path,
+                        help='with --demo or --replay: save a PNG at key moments to this folder')
+    args = parser.parse_args()
+    random.seed(0)
+    gui = LivingRoomGUI(LivingRoom())
+    if args.snapshots:
+        args.snapshots.mkdir(parents=True, exist_ok=True)
+    if args.replay:
+        gui.run_replay(args.replay, once=args.once, snapshot_dir=args.snapshots)
+        if gui.mismatches:
+            raise SystemExit(f'replays differ from experiment.py: {" ".join(gui.mismatches)}')
+    elif args.demo:
+        gui.run_demo(args.snapshots, loop=not args.once)
+    else:
+        gui.run()

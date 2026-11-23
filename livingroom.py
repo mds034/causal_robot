@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import heapq
 import random
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional
+from typing import Callable, Optional
 
 Pos = tuple[int, int]  # (row, col)
 
@@ -23,11 +24,11 @@ class LivingRoom:
     def __init__(
         self,
         size: int = 20,
-        rug_shape: tuple[int, int] = (12, 10),
+        rug_shape: tuple[int, int] = (12, 14),
         rug_penalty: float = 5.0,
         hurry_penalty: float = 2.0,
         max_steps: int = 200,
-        max_shove: int = 3,
+        max_shove: int = 6,
     ):
         self.size = size
 
@@ -67,18 +68,31 @@ class LivingRoom:
         info = {'hurry': self.hurry}
         return self.pos, self.reward(self.pos), self.done, info
 
-    def shove(self, direction: Action, distance: int) -> Pos:
-        # external push by a human: moves the robot up to `max_shove` cells (stopping at walls),
-        # without counting as a robot step or yielding reward
-        if not 1 <= distance <= self.max_shove:
-            raise ValueError(f'shove distance must be in [1, {self.max_shove}], got {distance}')
+    def shove_problem(self, pos: Pos, direction: Action, distance: int) -> Optional[str]:
+        # why a shove is not acceptable within the bounds of the environment, or None if it is
+        if distance < 1:
+            return 'too_short'
+        if distance > self.max_shove:
+            return 'too_long'
         dr, dc = MOVES[Action(direction)]
+        if not self.in_bounds((pos[0] + dr * distance, pos[1] + dc * distance)):
+            return 'out_of_room'
+        return None
+
+    def shove(self, direction: Action, distance: int) -> tuple[Pos, float, bool]:
+        # a human correction: forces the robot `distance` steps in `direction` (stopping early at the goal).
+        # Each forced step is an ordinary step, so it counts towards `steps` and earns reward. A shove that is
+        # too short, longer than `max_shove`, or would push the robot out of the room is rejected.
+        problem = self.shove_problem(self.pos, direction, distance)
+        if problem:
+            raise ValueError(f'shove {Action(direction).name} {distance} from {self.pos} rejected: {problem}')
+        total = 0.0
         for _ in range(distance):
-            nxt = (self.pos[0] + dr, self.pos[1] + dc)
-            if not self.in_bounds(nxt):
+            if self.done:
                 break
-            self.pos = nxt
-        return self.pos
+            _, reward, _, _ = self.step(direction)
+            total += reward
+        return self.pos, total, self.done
 
     @property
     def done(self) -> bool:
@@ -90,15 +104,15 @@ class LivingRoom:
             return -1.0 - self.hurry_penalty
         return -1.0 - (self.rug_penalty if pos in self.rug else 0.0)
 
-    def optimal_action(self, pos: Optional[Pos] = None) -> Action:
-        # greedy w.r.t. step cost + cost-to-go, i.e. the reward-maximising policy
-        pos = pos or self.pos
+    def optimal_return(self) -> float:
+        # best achievable return from the start under the current (hidden) `hurry`
+        return -self._cost[self.start]
 
-        def q(a: Action) -> float:
-            nxt = (pos[0] + MOVES[a][0], pos[1] + MOVES[a][1])
-            return self._cost[nxt] - self.reward(nxt) if self.in_bounds(nxt) else float('inf')
-
-        return min(Action, key=q)
+    def move(self, pos: Pos, action: Action) -> Optional[Pos]:
+        # the cell one step from `pos`, or None if that would leave the room
+        dr, dc = MOVES[Action(action)]
+        nxt = (pos[0] + dr, pos[1] + dc)
+        return nxt if self.in_bounds(nxt) else None
 
     def in_bounds(self, pos: Pos) -> bool:
         return 0 <= pos[0] < self.size and 0 <= pos[1] < self.size
@@ -134,12 +148,51 @@ class LivingRoom:
         return '\n'.join(' '.join(cell((r, c)) for c in range(self.size)) for r in range(self.size))
 
 
+class Oracle:
+    """Informed policy: reads the hidden `hurry` variable. Only data generation and the human may use it."""
+
+    def __init__(self, env: LivingRoom, rng: Optional[random.Random] = None):
+        self.env = env
+        self.rng = rng  # if given, ties between optimal actions are broken at random
+
+    def optimal_actions(self, pos: Optional[Pos] = None) -> list[Action]:
+        # every action that starts some reward-maximising path from `pos`
+        env, pos = self.env, pos or self.env.pos
+
+        def q(a: Action) -> float:
+            nxt = env.move(pos, a)
+            return env._cost[nxt] - env.reward(nxt) if nxt is not None else float('inf')
+
+        qs = {a: q(a) for a in Action}
+        best = min(qs.values())
+        return [a for a in Action if qs[a] <= best + 1e-9]
+
+    def act(self, pos: Optional[Pos] = None) -> Action:
+        options = self.optimal_actions(pos)
+        return self.rng.choice(options) if self.rng else options[0]
+
+
+@dataclass(frozen=True)
+class Trajectory:
+    states: tuple[Pos, ...]  # s_0 .. s_T
+    actions: tuple[Action, ...]  # a_0 .. a_{T-1}
+    ret: float
+
+
+def rollout(env: LivingRoom, policy: Callable[[Pos], Action], hurry: Optional[bool] = None) -> Trajectory:
+    pos, states, actions, total, done = env.reset(hurry), [env.start], [], 0.0, False
+    while not done:
+        action = policy(pos)
+        pos, reward, done, _ = env.step(action)
+        states.append(pos)
+        actions.append(Action(action))
+        total += reward
+    return Trajectory(tuple(states), tuple(actions), total)
+
+
 if __name__ == '__main__':
     env = LivingRoom()
+    oracle = Oracle(env)
     for hurry in (True, False):
-        pos, path, total, done = env.reset(hurry=hurry), set(), 0.0, False
-        while not done:
-            pos, reward, done, _ = env.step(env.optimal_action())
-            path.add(pos)
-            total += reward
-        print(f'hurry={hurry}  steps={env.steps}  return={total}\n{env.render(path)}\n')
+        traj = rollout(env, oracle.act, hurry=hurry)
+        print(f'hurry={hurry}  steps={env.steps}  return={traj.ret}\n{env.render(set(traj.states[1:]))}\n')

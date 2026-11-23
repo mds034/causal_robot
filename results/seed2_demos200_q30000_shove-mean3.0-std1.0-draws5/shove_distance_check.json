@@ -1,0 +1,29 @@
+{
+  "mean": 3.0,
+  "std": 1.0,
+  "samples": 5000,
+  "raw_draws": {
+    "mean": 3.018,
+    "std": 1.038,
+    "min": 0,
+    "max": 7
+  },
+  "bounded_sampling": {
+    "placements": 5000,
+    "accepted": 4740,
+    "no_length_fits": 260,
+    "max_shove": 6,
+    "accepted_mean_distance": 2.793,
+    "accepted_min": 1,
+    "accepted_max": 6,
+    "rejected_draws_by_reason": {
+      "out_of_room": 5070,
+      "too_short": 60,
+      "too_long": 3
+    },
+    "accepted_landed_in_room": 4740,
+    "rejected_refused_by_env": 5133,
+    "rejected_but_env_allowed": 0
+  },
+  "passed": true
+}

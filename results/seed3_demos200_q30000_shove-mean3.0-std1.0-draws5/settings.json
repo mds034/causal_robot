@@ -1,0 +1,45 @@
+{
+  "seed": 3,
+  "demos": 200,
+  "q_episodes": 30000,
+  "shove_distance": {
+    "mean": 3.0,
+    "std": 1.0,
+    "draws_per_placement": 5
+  },
+  "env": {
+    "size": 20,
+    "start": [
+      10,
+      0
+    ],
+    "goal": [
+      10,
+      19
+    ],
+    "rug_rows": [
+      4,
+      15
+    ],
+    "rug_cols": [
+      3,
+      16
+    ],
+    "rug_penalty": 5.0,
+    "hurry_penalty": 2.0,
+    "max_steps": 200,
+    "max_shove": 6
+  },
+  "memory_groups": {
+    "-31.0": {
+      "demos": 166,
+      "distinct_routes": 98
+    },
+    "-57.0": {
+      "demos": 34,
+      "distinct_routes": 1
+    }
+  },
+  "git_commit": "12c415b-dirty",
+  "created": "2026-11-23T06:49:24+00:00"
+}

@@ -1,0 +1,16 @@
+[project]
+name = "causal-robot"
+version = "0.1.0"
+description = "Robots that remember every possibly-optimal trajectory so one human correction can reveal the latent state"
+requires-python = ">=3.10,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,36 @@
+{
+  "distribution": "Uniform(1..6)",
+  "expected_mean": 3.5,
+  "expected_std": 1.708,
+  "samples": 5000,
+  "raw_draws": {
+    "mean": 3.478,
+    "std": 1.72,
+    "min": 1,
+    "max": 6,
+    "counts": {
+      "1": 871,
+      "2": 842,
+      "3": 809,
+      "4": 807,
+      "5": 848,
+      "6": 823
+    }
+  },
+  "bounded_sampling": {
+    "placements": 5000,
+    "accepted": 4735,
+    "no_length_fits": 265,
+    "max_shove": 6,
+    "accepted_mean_distance": 3.08,
+    "accepted_min": 1,
+    "accepted_max": 6,
+    "rejected_draws_by_reason": {
+      "out_of_room": 2190
+    },
+    "accepted_landed_in_room": 4735,
+    "rejected_refused_by_env": 2190,
+    "rejected_but_env_allowed": 0
+  },
+  "passed": true
+}
