@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional
 
 import experiment
-from experiment import PREFIX, Run, plan_runs, shove_opportunities
-from human import RandomShoveHuman, ScriptedHuman
-from livingroom import MOVES, Action, LivingRoom, Oracle, Pos
+from experiment import PREFIX, Run, plan_runs
+from human import Human
+from livingroom import MOVES, Action, LivingRoom, Obs, Oracle, Pos
 
 CELL = 34  # the artwork below is sized for this cell size
 FRAME_MS = 16
@@ -28,17 +28,15 @@ HELP = 'space: agent step   click a highlighted cell: shove (once)   a: switch a
 AGENTS = ('memory', 'q-learning', 'oracle')
 MAX_ROUTES_DRAWN = 40
 DEMO_STEP_MS, DEMO_PAUSE_MS = 120, 2500
-DEMO = (  # agent, hurry, fixed shove?, caption
-    ('memory', False, False, 'Not in a hurry. The memory agent follows the most common remembered route, '
-                             'around the rug (green: every optimal route it remembers).'),
-    ('memory', True, False, 'In a hurry, no shove. It still goes around the rug, because that route was the '
-                            'most common in training.'),
-    ('q-learning', True, True, 'Q-learning, in a hurry. The human shoves it 3 cells onto the rug, but it has '
-                               'no memory to consult and walks back off it.'),
-    ('memory', True, True, 'Memory agent, in a hurry. Only the straight route contains the shove, so it '
-                           'filters its memory to that route and crosses the rug.'),
-    ('memory', True, 'random', 'Memory agent, in a hurry, shoved 3 cells at a random moment it goes wrong. '
-                               'If no remembered route contains it, it follows the routes the shove pushed it towards.'),
+DEMO = (  # agent, hurry, human present?, caption
+    ('memory', False, True, 'Not in a hurry, human present. The human only shoves a robot that is on the rug, '
+                            'so the memory agent acts exactly like Q-learning.'),
+    ('q-learning', True, True, 'Q-learning, in a hurry. Early on, the human shoves it right, far enough to '
+                               'reach the rug. It has no memory to consult.'),
+    ('memory', True, True, 'Memory agent, in a hurry. After the shove it follows the group of past experience '
+                           'the shove agrees with (green: that group\'s route from here).'),
+    ('memory', True, False, 'Memory agent, in a hurry, no human. Without a correction it acts exactly like '
+                            'Q-learning.'),
 )
 Frame = tuple[float, float, float, float]  # robot x, robot y, lift, hand y
 
@@ -54,8 +52,8 @@ class OracleAgent:
     def reset(self) -> None:
         pass
 
-    def act(self, pos: Pos) -> Action:
-        return self.oracle.act(pos)
+    def act(self, obs: Obs) -> Action:
+        return self.oracle.act(obs.pos)
 
     def observe_correction(self, *_) -> None:
         pass
@@ -140,7 +138,7 @@ class LivingRoomGUI:
     def policy_step(self) -> None:
         if self.animating or self.env.done:
             return
-        pos, reward, _, _ = self.env.step(self.agent.act(self.env.pos))
+        pos, reward, _, _ = self.env.step(self.agent.act(self.env.observe()))
         self.trail.append(pos)
         self.total += reward
         self.draw()
@@ -196,16 +194,12 @@ class LivingRoomGUI:
         self.run()
 
     def start_scenario(self) -> None:
-        name, hurry, shove, caption = DEMO[self.demo_index]
+        name, hurry, with_human, caption = DEMO[self.demo_index]
         self.agent_name = name
         self.reset(hurry)
-        if shove == 'random':
-            spots = shove_opportunities(self.env, self.agent, hurry)
-            self.env.reset(hurry)
-            self.agent.reset()
-            self.human = RandomShoveHuman(self.env, at=random.randrange(len(spots)))
-        else:
-            self.human = ScriptedHuman(self.env) if shove else None
+        self.human = Human(self.env, random.Random()) if with_human else None
+        if self.human:
+            self.human.reset()
         self.caption = f'{self.demo_index + 1}/{len(DEMO)}  {caption}'
         self.label = f'{self.demo_index + 1}-{self.agent_name}'
         self.draw()
@@ -299,7 +293,7 @@ class LivingRoomGUI:
             self.snapshot('end')
             self.on_episode_end()
             return
-        shove = self.human.intervene(self.agent.act(self.env.pos)) if self.human else None
+        shove = self.human.intervene(self.agent.act(self.env.observe())) if self.human else None
         if shove:
             (dr, dc), dist = MOVES[shove[0]], shove[1]
             self.shove_to((self.env.pos[0] + dr * dist, self.env.pos[1] + dc * dist))
@@ -475,7 +469,7 @@ class LivingRoomGUI:
         cv.delete('dynamic')
 
         routes = self.agent.candidate_routes()
-        for route in routes[:MAX_ROUTES_DRAWN]:  # optimal routes still in the agent's memory
+        for route in routes[:MAX_ROUTES_DRAWN]:  # the route of the group of experience being followed
             cv.create_line(*[v for s in route.states for v in self.center(s)], fill=COLORS['memory'],
                            width=2, tags='dynamic')
 
@@ -505,7 +499,7 @@ class LivingRoomGUI:
         state = 'done' if self.env.done else ''
         self.status['text'] = (
             f'agent: {self.agent_name:<10}  hurry: {self.env.hurry!s:<5}  steps: {self.env.steps:<3}  '
-            f'return: {self.total:<6.0f}  shove used: {bool(self.shoves)!s:<5}  remembered routes: {len(routes):<4}'
+            f'return: {self.total:<6.0f}  shove used: {bool(self.shoves)!s:<5}  following group: {getattr(self.agent, "chosen", None)!s:<4}'
             f'{state}\n{self.help}'
         )
 

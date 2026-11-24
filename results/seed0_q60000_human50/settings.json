@@ -1,0 +1,61 @@
+{
+  "seed": 0,
+  "q_episodes": 60000,
+  "human_episodes_per_regime": 50,
+  "reward": "dense",
+  "human": {
+    "hurry": {
+      "step": "clip(round(Normal(2.0, 1.0)), 0, 4)",
+      "direction": "RIGHT",
+      "distance": "Uniform(1..max_shove), lengthened to reach the rug"
+    },
+    "not_hurry": {
+      "delay_after_rug": "clip(round(Normal(3.0, 1.5)), 0, 6)",
+      "direction": "nearest rug edge (random tie-break)",
+      "distance": "just off the rug, or max_shove"
+    }
+  },
+  "env": {
+    "size": 20,
+    "start": [
+      10,
+      0
+    ],
+    "goal": [
+      10,
+      19
+    ],
+    "rug_rows": [
+      4,
+      15
+    ],
+    "rug_cols": [
+      3,
+      16
+    ],
+    "rug_penalty": 5.0,
+    "hurry_penalty": 2.0,
+    "max_steps": 200,
+    "max_shove": 6
+  },
+  "memory_groups": [
+    {
+      "group": 0,
+      "episodes": 47964,
+      "transitions": 1596,
+      "hurried_episodes": 0,
+      "calm_episodes": 47964,
+      "purity": 1.0
+    },
+    {
+      "group": 1,
+      "episodes": 12036,
+      "transitions": 1596,
+      "hurried_episodes": 12036,
+      "calm_episodes": 0,
+      "purity": 1.0
+    }
+  ],
+  "git_commit": "5417013-dirty",
+  "created": "2026-11-24T23:19:41+00:00"
+}

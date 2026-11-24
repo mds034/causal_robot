@@ -5,7 +5,7 @@ import heapq
 import random
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable, Optional
+from typing import Callable, NamedTuple, Optional
 
 Pos = tuple[int, int]  # (row, col)
 
@@ -20,6 +20,15 @@ class Action(IntEnum):
 MOVES = {Action.UP: (-1, 0), Action.DOWN: (1, 0), Action.LEFT: (0, -1), Action.RIGHT: (0, 1)}
 
 
+class Obs(NamedTuple):
+    """What an agent observes at each step. It never includes `hurry`."""
+
+    pos: Pos
+    on_rug: bool
+    goal: Pos
+    rug: tuple[int, int, int, int]  # top, left, bottom, right rows/cols of the rug (inclusive)
+
+
 class LivingRoom:
     def __init__(
         self,
@@ -29,8 +38,12 @@ class LivingRoom:
         hurry_penalty: float = 2.0,
         max_steps: int = 200,
         max_shove: int = 6,
+        reward: str = 'dense',
     ):
+        if reward not in ('dense', 'sparse'):
+            raise ValueError(f'unknown reward mode {reward!r}')
         self.size = size
+        self.reward_mode = reward  # 'dense': each step pays its cost; 'sparse': everything at the end
 
         # V
         self.start: Pos = (size // 2, 0)
@@ -44,6 +57,7 @@ class LivingRoom:
         h, w = rug_shape
         top, left = (size - h) // 2, (size - w) // 2
         self.rug = {(r, c) for r in range(top, top + h) for c in range(left, left + w)}
+        self.rug_bounds = (top, left, top + h - 1, left + w - 1)
 
         self.rug_penalty = rug_penalty
         self.hurry_penalty = hurry_penalty
@@ -55,6 +69,7 @@ class LivingRoom:
         self.hurry = random.random() < 0.2 if hurry is None else hurry
         self.pos = self.start
         self.steps = 0
+        self.accrued = 0.0  # step rewards earned so far; paid out only when the episode ends
         self._cost = self._cost_to_go()
         return self.pos
 
@@ -65,8 +80,13 @@ class LivingRoom:
             self.pos = nxt
 
         self.steps += 1
+        self.accrued += self.step_reward(self.pos)
         info = {'hurry': self.hurry}
-        return self.pos, self.reward(self.pos), self.done, info
+        return self.pos, self.reward(), self.done, info
+
+    def observe(self) -> Obs:
+        # the agent's observation of the current state: position, whether it is on the rug, and the fixed layout
+        return Obs(self.pos, self.pos in self.rug, self.goal, self.rug_bounds)
 
     def shove_problem(self, pos: Pos, direction: Action, distance: int) -> Optional[str]:
         # why a shove is not acceptable within the bounds of the environment, or None if it is
@@ -81,7 +101,7 @@ class LivingRoom:
 
     def shove(self, direction: Action, distance: int) -> tuple[Pos, float, bool]:
         # a human correction: forces the robot `distance` steps in `direction` (stopping early at the goal).
-        # Each forced step is an ordinary step, so it counts towards `steps` and earns reward. A shove that is
+        # Each forced step is an ordinary step, so it counts towards `steps` and accrues reward. A shove that is
         # too short, longer than `max_shove`, or would push the robot out of the room is rejected.
         problem = self.shove_problem(self.pos, direction, distance)
         if problem:
@@ -98,7 +118,14 @@ class LivingRoom:
     def done(self) -> bool:
         return self.pos == self.goal or self.steps >= self.max_steps
 
-    def reward(self, pos: Pos) -> float:
+    def reward(self) -> float:
+        # dense: the cost of the step just taken; sparse: nothing until the episode ends, then the whole return
+        if self.reward_mode == 'dense':
+            return self.step_reward(self.pos)
+        return self.accrued if self.done else 0.0
+
+    def step_reward(self, pos: Pos) -> float:
+        # what stepping into `pos` adds to the episode's return (accrued, not paid out at once):
         # -1 per step; in a hurry every step costs extra, otherwise standing on the rug does.
         if self.hurry:
             return -1.0 - self.hurry_penalty
@@ -126,7 +153,7 @@ class LivingRoom:
                 continue
             for dr, dc in MOVES.values():
                 prev = (pos[0] - dr, pos[1] - dc)
-                new = d - self.reward(pos)  # cost of stepping from prev into pos
+                new = d - self.step_reward(pos)  # cost of stepping from prev into pos
                 if self.in_bounds(prev) and new < cost.get(prev, float('inf')):
                     cost[prev] = new
                     heapq.heappush(heap, (new, prev))
@@ -161,7 +188,7 @@ class Oracle:
 
         def q(a: Action) -> float:
             nxt = env.move(pos, a)
-            return env._cost[nxt] - env.reward(nxt) if nxt is not None else float('inf')
+            return env._cost[nxt] - env.step_reward(nxt) if nxt is not None else float('inf')
 
         qs = {a: q(a) for a in Action}
         best = min(qs.values())
@@ -177,17 +204,18 @@ class Trajectory:
     states: tuple[Pos, ...]  # s_0 .. s_T
     actions: tuple[Action, ...]  # a_0 .. a_{T-1}
     ret: float
+    rewards: tuple[float, ...] = ()  # r_1 .. r_T, as the agent received them
 
 
 def rollout(env: LivingRoom, policy: Callable[[Pos], Action], hurry: Optional[bool] = None) -> Trajectory:
-    pos, states, actions, total, done = env.reset(hurry), [env.start], [], 0.0, False
+    pos, states, actions, rewards, done = env.reset(hurry), [env.start], [], [], False
     while not done:
         action = policy(pos)
         pos, reward, done, _ = env.step(action)
         states.append(pos)
         actions.append(Action(action))
-        total += reward
-    return Trajectory(tuple(states), tuple(actions), total)
+        rewards.append(reward)
+    return Trajectory(tuple(states), tuple(actions), env.accrued, tuple(rewards))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,205 @@
+id,agent,hurry,shove,shove_step,direction,distance,origin,dest,handled,return,optimal,regret,best_after_shove,regret_after_shove,reached_goal
+q1,q-learning,False,none,,,,,,-,-31.0,-31.0,0.0,,,True
+q2,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q3,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q4,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q5,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q6,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q7,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q8,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q9,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q10,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q11,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q12,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q13,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q14,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q15,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q16,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q17,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q18,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q19,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q20,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q21,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q22,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q23,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q24,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q25,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q26,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q27,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q28,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q29,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q30,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q31,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q32,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q33,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q34,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q35,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q36,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q37,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q38,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q39,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q40,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q41,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q42,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q43,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q44,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q45,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q46,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q47,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q48,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q49,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q50,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q51,q-learning,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+q52,q-learning,True,none,,,,,,-,-93.0,-57.0,36.0,,,True
+q53,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q54,q-learning,True,human,0,RIGHT,3,"(10, 0)","(10, 3)",-,-99.0,-57.0,42.0,-57.0,42.0,True
+q55,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q56,q-learning,True,human,2,RIGHT,4,"(12, 0)","(12, 4)",-,-105.0,-57.0,48.0,-69.0,36.0,True
+q57,q-learning,True,human,1,RIGHT,4,"(11, 0)","(11, 4)",-,-105.0,-57.0,48.0,-63.0,42.0,True
+q58,q-learning,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",-,-99.0,-57.0,42.0,-63.0,36.0,True
+q59,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q60,q-learning,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",-,-93.0,-57.0,36.0,-69.0,24.0,True
+q61,q-learning,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",-,-93.0,-57.0,36.0,-69.0,24.0,True
+q62,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q63,q-learning,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",-,-93.0,-57.0,36.0,-63.0,30.0,True
+q64,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q65,q-learning,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",-,-93.0,-57.0,36.0,-63.0,30.0,True
+q66,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q67,q-learning,True,human,1,RIGHT,4,"(11, 0)","(11, 4)",-,-105.0,-57.0,48.0,-63.0,42.0,True
+q68,q-learning,True,human,4,RIGHT,4,"(14, 0)","(14, 4)",-,-93.0,-57.0,36.0,-81.0,12.0,True
+q69,q-learning,True,human,2,RIGHT,4,"(12, 0)","(12, 4)",-,-105.0,-57.0,48.0,-69.0,36.0,True
+q70,q-learning,True,human,3,RIGHT,6,"(13, 0)","(13, 6)",-,-93.0,-57.0,36.0,-75.0,18.0,True
+q71,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q72,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q73,q-learning,True,human,2,RIGHT,4,"(12, 0)","(12, 4)",-,-105.0,-57.0,48.0,-69.0,36.0,True
+q74,q-learning,True,human,1,RIGHT,5,"(11, 0)","(11, 5)",-,-93.0,-57.0,36.0,-63.0,30.0,True
+q75,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q76,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q77,q-learning,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",-,-99.0,-57.0,42.0,-63.0,36.0,True
+q78,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q79,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q80,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q81,q-learning,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",-,-99.0,-57.0,42.0,-63.0,36.0,True
+q82,q-learning,True,human,4,RIGHT,3,"(14, 0)","(14, 3)",-,-99.0,-57.0,42.0,-81.0,18.0,True
+q83,q-learning,True,human,3,RIGHT,5,"(13, 0)","(13, 5)",-,-93.0,-57.0,36.0,-75.0,18.0,True
+q84,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q85,q-learning,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",-,-99.0,-57.0,42.0,-63.0,36.0,True
+q86,q-learning,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",-,-93.0,-57.0,36.0,-69.0,24.0,True
+q87,q-learning,True,human,2,RIGHT,4,"(12, 0)","(12, 4)",-,-105.0,-57.0,48.0,-69.0,36.0,True
+q88,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q89,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q90,q-learning,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",-,-93.0,-57.0,36.0,-63.0,30.0,True
+q91,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q92,q-learning,True,human,1,RIGHT,5,"(11, 0)","(11, 5)",-,-93.0,-57.0,36.0,-63.0,30.0,True
+q93,q-learning,True,human,1,RIGHT,4,"(11, 0)","(11, 4)",-,-105.0,-57.0,48.0,-63.0,42.0,True
+q94,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q95,q-learning,True,human,3,RIGHT,6,"(13, 0)","(13, 6)",-,-93.0,-57.0,36.0,-75.0,18.0,True
+q96,q-learning,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",-,-99.0,-57.0,42.0,-63.0,36.0,True
+q97,q-learning,True,human,3,RIGHT,4,"(13, 0)","(13, 4)",-,-93.0,-57.0,36.0,-75.0,18.0,True
+q98,q-learning,True,human,3,RIGHT,4,"(13, 0)","(13, 4)",-,-93.0,-57.0,36.0,-75.0,18.0,True
+q99,q-learning,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",-,-93.0,-57.0,36.0,-69.0,24.0,True
+q100,q-learning,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",-,-99.0,-57.0,42.0,-75.0,24.0,True
+q101,q-learning,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",-,-99.0,-57.0,42.0,-69.0,30.0,True
+q102,q-learning,True,human,4,RIGHT,3,"(14, 0)","(14, 3)",-,-99.0,-57.0,42.0,-81.0,18.0,True
+m1,memory,False,none,,,,,,-,-31.0,-31.0,0.0,,,True
+m2,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m3,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m4,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m5,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m6,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m7,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m8,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m9,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m10,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m11,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m12,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m13,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m14,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m15,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m16,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m17,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m18,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m19,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m20,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m21,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m22,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m23,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m24,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m25,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m26,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m27,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m28,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m29,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m30,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m31,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m32,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m33,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m34,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m35,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m36,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m37,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m38,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m39,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m40,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m41,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m42,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m43,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m44,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m45,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m46,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m47,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m48,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m49,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m50,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m51,memory,False,human,,,,,,-,-31.0,-31.0,0.0,,,True
+m52,memory,True,none,,,,,,-,-93.0,-57.0,36.0,,,True
+m53,memory,True,human,4,RIGHT,5,"(14, 0)","(14, 5)",filter,-81.0,-57.0,24.0,-81.0,0.0,True
+m54,memory,True,human,1,RIGHT,4,"(11, 0)","(11, 4)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m55,memory,True,human,0,RIGHT,4,"(10, 0)","(10, 4)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m56,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m57,memory,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m58,memory,True,human,2,RIGHT,6,"(12, 0)","(12, 6)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m59,memory,True,human,4,RIGHT,3,"(14, 0)","(14, 3)",filter,-81.0,-57.0,24.0,-81.0,0.0,True
+m60,memory,True,human,0,RIGHT,3,"(10, 0)","(10, 3)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m61,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m62,memory,True,human,4,RIGHT,6,"(14, 0)","(14, 6)",filter,-81.0,-57.0,24.0,-81.0,0.0,True
+m63,memory,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m64,memory,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m65,memory,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m66,memory,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m67,memory,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m68,memory,True,human,1,RIGHT,4,"(11, 0)","(11, 4)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m69,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m70,memory,True,human,0,RIGHT,3,"(10, 0)","(10, 3)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m71,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m72,memory,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m73,memory,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m74,memory,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m75,memory,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m76,memory,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m77,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m78,memory,True,human,2,RIGHT,6,"(12, 0)","(12, 6)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m79,memory,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m80,memory,True,human,3,RIGHT,5,"(13, 0)","(13, 5)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m81,memory,True,human,3,RIGHT,3,"(13, 0)","(13, 3)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m82,memory,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m83,memory,True,human,2,RIGHT,4,"(12, 0)","(12, 4)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m84,memory,True,human,0,RIGHT,3,"(10, 0)","(10, 3)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m85,memory,True,human,0,RIGHT,3,"(10, 0)","(10, 3)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m86,memory,True,human,2,RIGHT,5,"(12, 0)","(12, 5)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m87,memory,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m88,memory,True,human,0,RIGHT,5,"(10, 0)","(10, 5)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m89,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m90,memory,True,human,3,RIGHT,4,"(13, 0)","(13, 4)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m91,memory,True,human,3,RIGHT,4,"(13, 0)","(13, 4)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m92,memory,True,human,2,RIGHT,6,"(12, 0)","(12, 6)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m93,memory,True,human,2,RIGHT,6,"(12, 0)","(12, 6)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m94,memory,True,human,3,RIGHT,6,"(13, 0)","(13, 6)",filter,-75.0,-57.0,18.0,-75.0,0.0,True
+m95,memory,True,human,4,RIGHT,6,"(14, 0)","(14, 6)",filter,-81.0,-57.0,24.0,-81.0,0.0,True
+m96,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m97,memory,True,human,0,RIGHT,4,"(10, 0)","(10, 4)",filter,-57.0,-57.0,0.0,-57.0,0.0,True
+m98,memory,True,human,2,RIGHT,3,"(12, 0)","(12, 3)",filter,-69.0,-57.0,12.0,-69.0,0.0,True
+m99,memory,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m100,memory,True,human,1,RIGHT,3,"(11, 0)","(11, 3)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m101,memory,True,human,1,RIGHT,6,"(11, 0)","(11, 6)",filter,-63.0,-57.0,6.0,-63.0,0.0,True
+m102,memory,True,human,4,RIGHT,3,"(14, 0)","(14, 3)",filter,-81.0,-57.0,24.0,-81.0,0.0,True

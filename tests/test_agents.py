@@ -3,149 +3,41 @@ import random
 
 import pytest
 
-from agents import MemoryAgent, contains, segment_states
-from experiment import random_shove_sweep, run_all, run_episode, save_results, shove_opportunities
-from human import RandomShoveHuman, ScriptedHuman
-from livingroom import Action, LivingRoom, Oracle, rollout
+from agents import MemoryAgent, QLearningAgent, replay_values, segment_states
+from experiment import group_report, run_all, run_episode, save_results, summarise, train
+from human import Human
+from livingroom import Action, LivingRoom, Obs, Oracle, Trajectory, rollout
 
 
-@pytest.fixture(scope='module')
-def trained():
-    random.seed(0)
-    env = LivingRoom()
-    memory = MemoryAgent(env)
-    oracle = Oracle(env, rng=random.Random(0))  # one oracle, so tie-breaking varies across demos
-    memory.train(rollout(env, oracle.act) for _ in range(200))
-    return env, memory
-
-
-def test_memory_groups_one_per_latent_setting(trained):
-    env, memory = trained
-    assert max(len(routes) for routes in memory.groups.values()) > 1  # many tied routes remembered
-    returns = {rollout(env, Oracle(env).act, hurry=h).ret for h in (True, False)}
-    assert set(memory.groups) == returns
-
-
-def test_without_correction_follows_most_common_route(trained):
-    env, memory = trained
-    assert run_episode(env, memory, hurry=False, human=None)['return'] == env.optimal_return()
-    assert run_episode(env, memory, hurry=True, human=None)['return'] < env.optimal_return()
-
-
-@pytest.mark.parametrize('hurry', [False, True])
-def test_one_correction_recovers_optimal_return(trained, hurry):
-    env, memory = trained
-    result = run_episode(env, memory, hurry=hurry, human=ScriptedHuman(env))
-    assert result['corrections'] == (1 if hurry else 0)  # a rational human only shoves onto the rug in a hurry
-    assert result['return'] == result['optimal']
-
-
-def test_human_shoves_three_cells_once(trained):
-    env, _ = trained
-    env.reset(hurry=True)
-    human = ScriptedHuman(env)
-    assert human.intervene() == (Action.RIGHT, 3)
-    assert human.intervene() is None
-
-
-def test_shove_lands_on_rug_and_only_hurry_routes_contain_it(trained):
-    env, memory = trained
-    segment = segment_states(env.start, Action.RIGHT, (env.start[0], env.start[1] + 3))
-    assert segment[-1] in env.rug
-    hurry_ret = rollout(env, Oracle(env).act, hurry=True).ret
-    assert {ret for ret, ts in memory.groups.items() if any(contains(t, segment) for t in ts)} == {hurry_ret}
-
-
-def test_filter_keeps_only_routes_containing_the_correction(trained):
-    env, memory = trained
-    memory.reset()
-    origin = env.start
-    dest = (origin[0], origin[1] + 3)
-    memory.observe_correction(origin, Action.RIGHT, 3, dest)
-    segment = segment_states(origin, Action.RIGHT, dest)
-    assert memory.candidate_routes()
-    assert all(contains(t, segment) for t in memory.candidate_routes())
-
+# --- environment -------------------------------------------------------------
 
 def test_shove_counts_steps_and_reward():
     env = LivingRoom()
     env.reset(hurry=True)
     pos, reward, _ = env.shove(Action.RIGHT, 2)
     assert pos == (env.start[0], env.start[1] + 2)
-    assert env.steps == 2 and reward == 2 * (-1 - env.hurry_penalty)
+    assert env.steps == 2 and reward == env.accrued == 2 * (-1 - env.hurry_penalty)
 
 
-def test_random_shoves_are_rational_and_three_cells(trained):
-    env, memory = trained
-    spots = shove_opportunities(env, memory, hurry=True)
-    assert spots
-    oracle = Oracle(env)
-    for k, pos, directions in spots:
-        for d in directions:
-            result = run_episode(env, memory, True, RandomShoveHuman(env, at=k, direction=d))
-            origin, direction, dest = result['shove']
-            assert origin == pos and direction == d and result['corrections'] == 1
-            assert abs(dest[0] - origin[0]) + abs(dest[1] - origin[1]) == 3
+def test_dense_reward_pays_each_step():
+    env = LivingRoom()
+    for hurry in (False, True):
+        traj = rollout(env, Oracle(env).act, hurry=hurry)
+        assert all(r == env.step_reward(s) for r, s in zip(traj.rewards, traj.states[1:]))
+        assert sum(traj.rewards) == traj.ret == env.optimal_return()
 
 
-def test_no_random_shove_when_not_in_a_hurry(trained):
-    env, memory = trained
-    assert shove_opportunities(env, memory, hurry=False) == []
-
-
-def test_sweep_reports_how_each_shove_was_handled(trained):
-    env, memory = trained
-    rows = random_shove_sweep(env, memory)
-    assert {r['choice'] for r in rows} <= {'filter', 'toward'}
-    assert all(r['return'] == r['best_after_shove'] for r in rows if r['choice'] == 'filter')
-
-
-def test_every_random_shove_leads_to_best_return_after_the_shove(trained):
-    env, memory = trained
-    rows = random_shove_sweep(env, memory)
-    assert rows and all(r['return'] == r['best_after_shove'] for r in rows)
-
-
-def test_results_saved_per_seed_and_settings(trained, tmp_path):
-    import csv
-    import json
-
-    env, memory = trained
-    rows = run_all(env, [memory])
-    out = save_results(rows, env, memory, demos=200, q_episodes=1, seed=7, root=tmp_path)
-    assert out.parent == tmp_path and out.name == 'seed7_demos200_q1_shove-uniform1-6-draws5'
-    with open(out / 'runs.csv') as f:
-        saved = list(csv.DictReader(f))
-    assert [r['id'] for r in saved] == [r['id'] for r in rows]
-    assert float(saved[0]['return']) == rows[0]['return']
-    settings = json.loads((out / 'settings.json').read_text())
-    assert settings['seed'] == 7 and settings['demos'] == 200 and settings['env']['max_shove'] == 6
-    assert settings['shove_distance']['distribution'] == 'uniform'
-    normal = save_results(rows, env, memory, demos=200, q_episodes=1, seed=7, root=tmp_path, dist='normal')
-    assert normal.name == 'seed7_demos200_q1_shove-mean3.0-std1.0-draws5'
-
-
-def test_uniform_shove_distance_covers_every_length_equally():
-    from human import ShoveDistance
-
-    lengths = ShoveDistance(rng=random.Random(0), kind='uniform', low=1, high=6)
-    draws = [lengths.draw() for _ in range(60000)]
-    counts = Counter(draws)
-    assert set(counts) == set(range(1, 7)) and all(abs(c - 10000) < 500 for c in counts.values())
-    mean, std = lengths.expected()
-    assert mean == 3.5 and abs(std - (35 / 12) ** 0.5) < 1e-9
+def test_sparse_reward_is_paid_only_at_the_end():
+    env = LivingRoom(reward='sparse')
+    env.reset(hurry=False)
+    oracle, rewards, done = Oracle(env), [], False
+    while not done:
+        _, reward, done, _ = env.step(oracle.act())
+        rewards.append(reward)
+    assert all(r == 0.0 for r in rewards[:-1])
+    assert rewards[-1] == env.optimal_return() == env.accrued
     with pytest.raises(ValueError):
-        ShoveDistance(kind='poisson')
-
-
-def test_shove_distance_is_normal_around_three():
-    from human import ShoveDistance
-
-    lengths = ShoveDistance(rng=random.Random(0))
-    draws = [lengths.draw() for _ in range(20000)]
-    mean = sum(draws) / len(draws)
-    std = (sum((d - mean) ** 2 for d in draws) / len(draws)) ** 0.5
-    assert lengths.mean == 3.0 and abs(mean - 3.0) < 0.05 and abs(std - 1.0) < 0.1
+        LivingRoom(reward='weekly')
 
 
 def test_env_rejects_shoves_outside_the_room():
@@ -160,34 +52,304 @@ def test_env_rejects_shoves_outside_the_room():
     assert env.pos == env.start and env.steps == 0  # a rejected shove does not move the robot
 
 
-def test_sampled_lengths_only_accept_shoves_inside_the_room():
-    from human import ShoveDistance
-
+def test_observation_has_position_rug_and_goal_but_not_hurry():
     env = LivingRoom()
-    lengths = ShoveDistance(rng=random.Random(1))
-    pos = (10, 17)  # two cells from the right wall
-    for _ in range(200):
-        d = lengths.sample(lambda n: env.shove_problem(pos, Action.RIGHT, n))
-        assert 1 <= d <= 2
-    assert lengths.rejected['out_of_room'] > 0
+    rug_rows, rug_cols = [r for r, _ in env.rug], [c for _, c in env.rug]
+    for hurry in (False, True):
+        env.reset(hurry)
+        obs = env.observe()
+        assert obs == Obs(env.start, False, env.goal, (min(rug_rows), min(rug_cols), max(rug_rows), max(rug_cols)))
+        env.shove(Action.RIGHT, 3)
+        assert env.observe().on_rug and env.observe().pos == (env.start[0], 3)
+    assert 'hurry' not in Obs._fields
 
 
-def test_random_length_runs_are_valid_and_memory_reaches_best_after_shove(trained):
-    from experiment import run_all
+
+# --- human -------------------------------------------------------------------
+
+def place(env: LivingRoom, pos, steps: int = 0) -> None:
+    env.pos, env.steps = pos, steps
+
+
+def first_shove(env: LivingRoom, human: Human, hurry: bool, act):
+    # run one episode with policy `act`; return (step, origin, direction, distance, dest) of the shove, or None
+    env.reset(hurry)
+    human.reset()
+    found = None
+    while not env.done:
+        shove = human.intervene()
+        if shove:
+            assert found is None, 'the human shoved twice'
+            origin, step = env.pos, env.steps
+            dest, _, _ = env.shove(*shove)
+            found = (step, origin, *shove, dest)
+            continue
+        env.step(act(env.pos))
+    return found
+
+
+def test_hurried_shove_is_once_early_rightward_and_reaches_the_rug():
+    env = LivingRoom()
+    oracle = Oracle(env)
+    for seed in range(200):
+        human = Human(env, random.Random(seed))
+        # a robot that walks down the left wall, as if going round the rug
+        step, origin, direction, distance, dest = first_shove(
+            env, human, True, lambda p: Action.DOWN if p[0] < env.size - 1 else oracle.act(p))
+        assert 0 <= step <= Human.HURRY_LAST and direction == Action.RIGHT
+        assert 1 <= distance <= env.max_shove and dest in env.rug
+
+
+def test_hurried_shove_timing_and_distance_distribution():
+    env = LivingRoom()
+    env.reset(hurry=True)
+    human = Human(env, random.Random(0))
+    dues = []
+    for _ in range(20000):
+        human.reset()
+        dues.append(human.due)
+    assert set(dues) <= set(range(Human.HURRY_LAST + 1))
+    assert abs(sum(dues) / len(dues) - Human.HURRY_MEAN) < 0.05
+    # from the dock (3 cells from the rug), lengths 1-2 are raised to 3; 4-6 are kept
+    counts = Counter()
+    for _ in range(6000):
+        env.reset(hurry=True)
+        human.reset()
+        human.due = 0
+        counts[human.intervene()[1]] += 1
+    assert set(counts) == {3, 4, 5, 6} and abs(counts[3] - 3000) < 200
+
+
+def test_no_calm_shove_off_the_rug():
+    env = LivingRoom()
+    oracle = Oracle(env)
+    for seed in range(50):
+        assert first_shove(env, Human(env, random.Random(seed)), False, oracle.act) is None
+
+
+def test_calm_shove_pushes_just_off_the_rug_by_the_nearest_edge_after_the_delay():
+    env = LivingRoom()
+    rug_rows = [r for r, _ in env.rug]
+    for seed in range(100):
+        env.reset(hurry=False)
+        human = Human(env, random.Random(seed))
+        human.reset()
+        place(env, (min(rug_rows) + 1, 10), steps=5)  # 2 cells below the top edge, far from the others
+        for t in range(human.due):
+            place(env, env.pos, steps=5 + t)
+            assert human.intervene() is None
+        place(env, env.pos, steps=5 + human.due)
+        assert human.intervene() == (Action.UP, 2)
+        dest, _, _ = env.shove(Action.UP, 2)
+        assert dest not in env.rug and env.move(dest, Action.DOWN) in env.rug
+
+
+def test_calm_shove_breaks_ties_at_random():
+    env = LivingRoom()
+    rug_rows, rug_cols = [r for r, _ in env.rug], [c for _, c in env.rug]
+    corner = (min(rug_rows) + 1, min(rug_cols) + 1)  # 2 cells from both the top and the left edge
+    directions = Counter()
+    for seed in range(400):
+        env.reset(hurry=False)
+        human = Human(env, random.Random(seed))
+        human.reset()
+        human.due = 0
+        place(env, corner)
+        directions[human.intervene()] += 1
+    assert set(directions) == {(Action.UP, 2), (Action.LEFT, 2)}
+    assert abs(directions[Action.UP, 2] - 200) < 50
+
+
+# --- agents ------------------------------------------------------------------
+
+def test_memory_agent_learns_the_same_q_table_as_the_baseline():
+    env = LivingRoom()
+    tables = []
+    for cls in (QLearningAgent, MemoryAgent):
+        random.seed(3)
+        agent = cls(env, seed=3)
+        agent.train(300)
+        tables.append((agent.q, agent.experience, agent.values))
+    assert tables[0] == tables[1]  # same online Q-table, same experience, same replayed values
+
+
+def test_replay_averages_rewards_by_how_often_they_were_seen():
+    goal, s = (0, 1), (0, 0)
+    experience = Counter({(s, Action.RIGHT, -6.0, goal): 4, (s, Action.RIGHT, -3.0, goal): 1})
+    assert abs(replay_values(experience, 0.1, goal)[s, Action.RIGHT] - (-5.4)) < 1e-4
+
+
+def test_replay_marks_moves_into_unknown_cells_unusable():
+    goal = (0, 2)
+    experience = Counter({((0, 0), Action.RIGHT, -1.0, (0, 1)): 1, ((0, 0), Action.DOWN, -1.0, (1, 0)): 1,
+                          ((0, 1), Action.RIGHT, -1.0, goal): 1})
+    q = replay_values(experience, 0.1, goal)
+    assert q[(0, 0), Action.DOWN] == float('-inf') and abs(q[(0, 0), Action.RIGHT] - (-2.0)) < 1e-4
+
+
+def _walk(env, hurry, rng, steps):
+    env.reset(hurry)
+    states, actions, rewards = [env.pos], [], []
+    for _ in range(steps):
+        a = rng.choice(list(Action))
+        pos, r, done, _ = env.step(a)
+        states.append(pos), actions.append(a), rewards.append(r)
+        if done:
+            break
+    return Trajectory(tuple(states), tuple(actions), env.accrued, tuple(rewards))
+
+
+def test_episodes_are_grouped_by_the_rewards_they_paid():
+    # hand-built experience: oracle routes and random walks from both regimes, interleaved
+    env = LivingRoom()
+    rng = random.Random(0)
+    memory = MemoryAgent(env)
+    truth = []
+    for i in range(40):
+        hurry = i % 3 == 0
+        traj = rollout(env, Oracle(env).act, hurry=hurry) if i % 2 else _walk(env, hurry, rng, 80)
+        memory.remember(traj)
+        truth.append(hurry)
+    assert len(memory.groups) == 2
+    for k in range(2):
+        assert len({h for h, g in zip(truth, memory.episode_groups) if g == k}) == 1  # each group is one regime
+
+
+def test_a_conflicting_episode_starts_a_new_group_and_an_agreeing_one_joins():
+    env = LivingRoom()
+    memory = MemoryAgent(env)
+    a, b = (env.start[0], 1), (env.start[0], 2)
+    memory.remember(Trajectory((env.start, a, b), (Action.RIGHT, Action.RIGHT), -2.0, (-1.0, -1.0)))
+    memory.remember(Trajectory((env.start, a), (Action.RIGHT,), -3.0, (-3.0,)))  # same cell, other reward
+    memory.remember(Trajectory((env.start, a), (Action.RIGHT,), -1.0, (-1.0,)))  # agrees with the first
+    assert memory.episode_groups == [0, 1, 0]
+
+
+def test_groups_that_never_overlapped_merge_when_an_episode_bridges_them():
+    env = LivingRoom()
+    memory = MemoryAgent(env)
+    up, down = (env.start[0] - 1, 0), (env.start[0] + 1, 0)
+    memory.remember(Trajectory((env.start, up), (Action.UP,), -3.0, (-3.0,)))
+    memory.remember(Trajectory((env.start, (env.start[0], 1)), (Action.RIGHT,), -1.0, (-1.0,)))  # other regime
+    memory.remember(Trajectory((env.start, down), (Action.DOWN,), -3.0, (-3.0,)))  # overlaps neither
+    assert len(memory.groups) == 3
+    bridge = (env.start, up, env.start, down)  # enters both cells, agreeing with the first and third episodes
+    memory.remember(Trajectory(bridge, (Action.UP, Action.DOWN, Action.DOWN), -9.0, (-3.0, -3.0, -3.0)))
+    assert len(memory.groups) == 2 and memory.episode_groups == [0, 1, 0, 0]
+    assert memory.groups[0].episodes == 3
+
+
+@pytest.fixture(scope='module')
+def trained():
+    env = LivingRoom()
+    memory = train('memory', env, q_episodes=5000, seed=0, cache=False)
+    return env, memory
+
+
+def test_grouping_recovers_the_hidden_regimes(trained):
+    env, memory = trained
+    report = group_report(memory)
+    assert len(report) == 2 and all(g['purity'] == 1.0 for g in report)
+    assert sorted(g['hurried_episodes'] > 0 for g in report) == [False, True]
+
+
+def hurried_group(memory):
+    return next(g['group'] for g in group_report(memory) if g['hurried_episodes'])
+
+
+def test_a_hurried_shove_agrees_only_with_the_hurried_group_and_is_followed_optimally(trained):
+    env, memory = trained
+    env.reset(hurry=True)
+    memory.reset()
+    origin, dest = env.start, (env.start[0], 3)
+    assert memory.consistent_groups(origin, Action.RIGHT, dest) == [hurried_group(memory)]
+    env.shove(Action.RIGHT, 3)
+    memory.observe_correction(origin, Action.RIGHT, 3, dest)
+    assert memory.last_choice == 'filter' and memory.chosen == hurried_group(memory)
+    assert memory.candidate_routes() and memory.candidate_routes()[0].states[-1] == env.goal
+    while not env.done:
+        env.step(memory.act(env.observe()))
+    assert env.pos == env.goal and env.accrued == env.optimal_return()
+
+
+def test_without_a_correction_the_memory_agent_acts_like_the_baseline(trained):
+    env, memory = trained
+    memory.reset()
+    for r in range(env.size):
+        for c in range(env.size):
+            env.pos = (r, c)
+            obs = env.observe()
+            assert memory.act(obs) == QLearningAgent.act(memory, obs)
+
+
+def test_the_baseline_reaches_the_goal_from_every_rug_cell(trained):
+    # replayed values do not loop where the online Q-table, rarely updated off its route, did
+    env, memory = trained
+    for cell in sorted(env.rug):
+        env.reset(hurry=False)
+        env.pos = cell
+        while not env.done:
+            env.step(QLearningAgent.act(memory, env.observe()))
+        assert env.pos == env.goal, cell
+
+
+def test_an_inconsistent_shove_falls_back_to_the_baseline(trained):
+    env, memory = trained
+    memory.reset()
+    memory.observe_correction((0, 5), Action.LEFT, 3, (0, 2))  # away from the goal: greedy in no group
+    assert memory.last_choice == 'no-match' and memory.chosen is None and memory.candidate_routes() == []
+    env.pos = (5, 5)
+    assert memory.act(env.observe()) == QLearningAgent.act(memory, env.observe())
+
+
+def test_segment_states():
+    assert segment_states((0, 0), Action.RIGHT, (0, 2)) == [(0, 0), (0, 1), (0, 2)]
+
+
+# --- experiment --------------------------------------------------------------
+
+def test_with_the_human_memory_follows_hurried_shoves_and_baseline_does_not(trained):
+    env, memory = trained
+    rows = run_all(env, [memory], episodes=10)
+    hurried = [r for r in rows if r['hurry'] and r['shove'] == 'human']
+    assert hurried and all(r['direction'] == 'RIGHT' and 0 <= r['shove_step'] <= Human.HURRY_LAST for r in hurried)
+    assert all(tuple(r['dest']) in env.rug for r in hurried)
+    s = summarise(rows)
+    assert s[True]['shoved'] == 1.0 and s[False]['shoved'] == 0.0
+    assert s[True]['handled'] == {'filter': 10} and s[True]['success'] == 1.0 and s[False]['success'] == 1.0
+
+
+def test_run_episode_reports_best_return_after_the_shove(trained):
+    env, memory = trained
+
+    class ShoveRightThree:
+        def reset(self):
+            self.used = False
+
+        def intervene(self, intended=None):
+            if self.used:
+                return None
+            self.used = True
+            return Action.RIGHT, 3
+
+    result = run_episode(env, memory, hurry=True, human=ShoveRightThree())
+    assert result['shove_step'] == 0 and result['choice'] == 'filter'
+    assert result['return'] == result['best_after_shove'] == result['optimal']
+
+
+def test_results_saved_per_seed_and_settings(trained, tmp_path):
+    import csv
+    import json
 
     env, memory = trained
-    rows = [r for r in run_all(env, [memory]) if r['shove'] == 'random-distance']
-    assert rows
-    for r in rows:
-        assert 1 <= r['distance'] <= env.max_shove and env.in_bounds(r['dest'])
-        assert r['return'] == r['best_after_shove']
-
-
-def test_validation_experiment_passes(trained):
-    from experiment import validate_shove_distance
-
-    env, _ = trained
-    for dist in ('uniform', 'normal'):
-        result = validate_shove_distance(env, n=2000, dist=dist)
-        assert result['passed'], dist
-    assert result['bounded_sampling']['rejected_but_env_allowed'] == 0
+    rows = run_all(env, [memory], episodes=2)
+    out = save_results(rows, env, memory, q_episodes=1, seed=7, root=tmp_path, episodes=2)
+    assert out.parent == tmp_path and out.name == 'seed7_q1_human2'
+    with open(out / 'runs.csv') as f:
+        saved = list(csv.DictReader(f))
+    assert [r['id'] for r in saved] == [r['id'] for r in rows]
+    assert float(saved[0]['return']) == rows[0]['return']
+    settings = json.loads((out / 'settings.json').read_text())
+    assert settings['seed'] == 7 and settings['env']['max_shove'] == 6 and settings['reward'] == 'dense'
+    assert len(settings['memory_groups']) == 2 and all(g['purity'] == 1.0 for g in settings['memory_groups'])
+    assert 'hurry' in settings['human']

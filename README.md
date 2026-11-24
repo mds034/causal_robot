@@ -2,13 +2,13 @@
 
 Robots and RL agents often see several optimal trajectories in training. Which one is optimal depends on
 latent variables the agent cannot observe, and some trajectories are rarer than others. A standard RL agent
-optimises expected return, so it always follows the most commonly optimal trajectory. When a human corrects
-it at deployment, it cannot tell which trajectory the correction points to.
+optimises expected return, so it follows the most commonly optimal trajectory. When a human corrects it at
+deployment, it cannot tell which trajectory the correction points to.
 
-We instead keep a **memory of every trajectory that can be optimal**. When the human corrects the robot, the
-agent filters its memory to the optimal trajectories that contain that correction and follows one of them.
-If no remembered trajectory contains the correction, the human is assumed to be rational and to observe the
-latent variables. In that case the agent picks the highest-return trajectory among the valid options.
+Our agent learns with the **same RL algorithm** as the baseline, but also keeps a **replay buffer of its own
+training experience, grouped by the rewards each episode paid**. It is never told about the latent variable,
+or how many groups to expect. When the human corrects the robot, it follows the group of past experience
+whose best moves agree with the correction.
 
 ## Environment (`livingroom.py`)
 
@@ -19,151 +19,139 @@ dock and must reach the flag.
   - Not in a hurry: rug cells are costly, so going around the rug is optimal (return −31).
     Many tied routes exist, over or under the rug.
   - In a hurry: every step is costly, so the single straight line across the rug is optimal (return −57).
+- **Reward.** `LivingRoom(reward='dense')` (the default) pays each step's cost, `step_reward(pos)`, as it
+  happens. `reward='sparse'` pays nothing until the episode ends, then the whole return at once; tabular
+  Q-learning cannot learn the task that way (it never reaches the goal), so training uses dense reward. Agents'
+  policies never take reward as input, so the reward cannot make their behaviour depend on `hurry`.
+  `env.accrued` holds the return so far in both modes.
 - **Human correction**: a shove of 1–`max_shove` cells (6) in one direction. The forced moves are ordinary
-  steps that cost time and earn reward. `shove_problem` checks that a shove fits within the environment: at
+  steps that cost time and accrue reward. `shove_problem` checks that a shove fits within the environment: at
   least 1 cell, at most `max_shove`, and landing inside the room. `shove` refuses one that doesn't.
-- `Oracle` is the informed policy that reads `hurry`. Only data generation and the human use it.
+- **Observation.** Agents act on `env.observe()`, an `Obs(pos, on_rug, goal, rug)`: their position, whether
+  they are on the rug, the goal's position and the rug's bounds. It never includes `hurry`. For the tabular
+  agents these extra features change nothing (they are fixed or a function of position); they matter for an
+  agent that generalises across states.
+- `Oracle` is the informed policy that reads `hurry`. Only the evaluation (best possible return) and tests use
+  it.
 
-## Agents (`agents.py`) and human (`human.py`)
+## Agents (`agents.py`)
 
-- `QLearningAgent`: the standard RL baseline. It learns to always go around the rug and ignores corrections.
-- `MemoryAgent`: stores every optimal trajectory from training and groups them by return, which stands in for
-  a latent setting. With no correction it behaves like the baseline. After a shove it uses those prior
-  trajectories to decide what is optimal from where it landed:
-  1. it keeps only the remembered trajectories that contain every cell of the shove, and
-  2. if none do, it scores each group by how much closer the shove moved the robot to that group's remembered
-     routes (the shove's direction points towards the right routes), takes the highest-return group among
-     the best-scoring ones, and rejoins its route nearest to where the robot landed.
-- `ScriptedHuman`: sees `hurry` and **shoves once, at a fixed place: 3 cells right from the dock, onto the
-  rug**. It only does this when the shove is optimal, which means only when the robot is in a hurry. No
-  not-in-a-hurry route touches the rug, so the shove matches only the straight hurry route. Varying where
-  and when the shove happens is covered below. In the GUI you choose the shove yourself (1–6 cells, once).
-- `RandomShoveHuman`: same rational human, but it shoves at a chosen or random moment when the robot is
-  about to make a suboptimal move, in any direction where all the forced steps are optimal. Shoves are 3 cells
-  unless given a length.
-- `ShoveDistance`: random shove lengths in whole cells, either uniform over 1–`max_shove` (1–6, every
-  length equally likely; the default) or from Normal(mean, std), rounded. A length is redrawn until it is acceptable: within the environment's bounds and, for the rational human,
-  optimal all the way (it would not push the robot past row 10, for example).
+- `QLearningAgent`: the standard RL baseline. It trains with online tabular Q-learning (ε-greedy) and keeps
+  every transition it experienced, with how often it saw it. After training it **replays** that experience
+  through the same Q-learning update until the values settle (`replay_values`), with each move's rewards
+  averaged by how often each was seen, and acts on the result. It ignores corrections.
+
+  Why replay: the online Q-table is only reliable along the route the agent travels. It explored the rug
+  early, while everything else was still badly estimated, and then hardly ever again (under one update per
+  rug cell–action pair per 1000 episodes), so its rug values stayed about 20 too optimistic with all four
+  moves nearly tied. After a shove onto the rug it then preferred staying on the rug and bounced between two
+  cells until `max_steps`. The replayed values do not have that problem.
+- `MemoryAgent`: the same (it inherits `train`, so it learns an identical Q-table, keeps the same experience
+  and replays it identically), so without a correction it acts exactly like the baseline. It also keeps its
+  training experience grouped:
+  1. **Grouping.** Each finished episode joins the group it agrees with on the most cells: same reward for
+     entering the same cell, and no disagreement on any cell. If it agrees with none, it starts a new group.
+     If it agrees with several groups that agree with each other, they merge. Nothing tells the agent what the
+     groups mean; in this room they come out as exactly the two `hurry` regimes (purity 1.0 on every seed so
+     far, checked by the experiment against labels the agent never sees).
+  2. **Per-group values.** After training, each group's experience is replayed with the same
+     `replay_values`, giving one Q-function per group. Cells a group never acted
+     from are unusable for it.
+  3. **Following a correction.** A shove is a run of (cell, direction) pairs. The agent follows the group for
+     which every one of them is a greedy action (the most common such group if several are). If none is,
+     `no-match`, and it keeps its Q policy.
+
+  Why not store whole trajectories? Ranking a correction's matches by return favours the regime with cheaper
+  steps (a not-hurried episode that stepped onto the rug and back scores −38, the hurried crossing −57), and
+  ε-greedy almost never produces a whole hurried-optimal trajectory. Its single moves do all occur, and
+  Q-learning stitches them together.
+
+Neither agent trains with the human present. The only human model the memory agent assumes is that a
+correction consists of moves that are best under some group of its past experience.
+
+## Human (`human.py`)
+
+`Human` sees `hurry` and shoves at most once per episode:
+
+- **In a hurry:** at a step drawn from Normal(2, 1), rounded and clipped to the first 5 steps (0–4); always to
+  the right; length uniform over 1–6. If the rug lies to the robot's right, the shove is lengthened to reach
+  it (from the dock, 1–2 become 3).
+- **Not in a hurry:** only while the robot is on the rug. A delay drawn from Normal(3, 1.5), clipped to 0–6
+  steps, starts the first time the robot steps on the rug. When it has passed, the human pushes the robot off
+  by the nearest rug edge (ties broken at random), just far enough to leave the rug.
 
 ## Running
 
 ```bash
 uv sync
-uv run python experiment.py   # train both agents, run every experiment, save to results/ (~25s first time)
+uv run python experiment.py   # train both agents, run every experiment, save to results/ (~2 min first time)
 uv run python experiment.py --seed 0 1 2 3   # several seeds, each saved to its own folder
-uv run python experiment.py --distance-draws 10   # more random-length shoves per placement (uniform 1-6)
-uv run python experiment.py --shove-dist normal --shove-mean 4 --shove-std 1.5   # normal shove lengths instead
+uv run python experiment.py --human-episodes 100   # more deployment episodes with the human per regime
 uv run python gui.py          # interactive: space steps, click to shove once, a switches agent
-uv run python gui.py --demo   # plays the five scripted scenarios on a loop (--once --snapshots DIR saves PNGs)
-uv run python gui.py --replay m6   # replay one experiment run by ID (see below)
+uv run python gui.py --demo   # plays four scenarios on a loop (--once --snapshots DIR saves PNGs)
+uv run python gui.py --replay m53   # replay one experiment run by ID (see below)
 uv run pytest
 ```
 
-Example result (seed 0):
+## Results
 
-| agent      | hurry | human | return | optimal |
-|------------|-------|-------|-------:|--------:|
-| q-learning | True  | no    |    −93 |     −57 |
-| q-learning | True  | shove |    −99 |     −57 |
-| memory     | True  | no    |    −93 |     −57 |
-| memory     | True  | shove |    −57 |     −57 |
+60000 Q-learning episodes, 50 episodes with the human per agent and regime. Success means reaching the best
+return still possible after the shove (or from the start, if there was no shove). Prior-weighted success is
+0.8 × not hurried + 0.2 × hurried.
 
-### Random shove placement
+| seed | q-learning: not hurried | q-learning: hurried | q-learning: weighted | memory: not hurried | memory: hurried | memory: weighted |
+|-----:|------:|------:|-----:|------:|------:|-----:|
+|    0 |  1.00 |  0.00 | 0.80 |  1.00 |  1.00 | 1.00 |
+|    1 |  1.00 |  0.00 | 0.80 |  1.00 |  1.00 | 1.00 |
+|    2 |  1.00 |  0.06 | 0.81 |  1.00 |  1.00 | 1.00 |
+|    3 |  1.00 |  0.00 | 0.80 |  1.00 |  1.00 | 1.00 |
 
-`experiment.py` also runs one hurried episode for every place `RandomShoveHuman` could shove (seed 0):
-
-Most shoves happen after the robot has already taken a few wrong steps, so the yardstick is the best return
-still reachable from where the shove left it ("best after shove"):
-
-| agent      | placements | reached best after shove | mean return | mean best after shove |
-|------------|-----------:|-------------------------:|------------:|----------------------:|
-| q-learning |          9 |                        0 |      −101.0 |                 −75.0 |
-| memory     |          9 |                        9 |       −75.0 |                 −75.0 |
-
-The memory agent reaches it for all 9 placements on seeds 0–3. Only the shove along row 10, (10,2)→(10,5),
-lies on a remembered route, so the filter handles that one. The other 8 (sideways onto the rug, or back up
-toward row 10) match no remembered route and go to the direction fallback.
-
-The fallback first compared returns alone, and that picked the around-the-rug group (−31 beats −57) for all
-8, so the robot went back around (mean −99). A literal direction match, preferring the group whose remembered
-moves near the shove go the same way, got only 2 of 8 right. Upward shoves match neither group, and the
-around-the-rug routes also move right along row 16. Scoring how much closer the shove moved the robot to
-each group's routes gets all 8 right.
-
-### Random shove length
-
-For every placement above, `experiment.py` also runs 5 shoves whose lengths come from `ShoveDistance`,
-uniform over 1–6 cells and redrawn until acceptable. In seeds 0–3:
-
-| agent      | runs per seed | reached best after shove        | mean length |
-|------------|--------------:|---------------------------------|------------:|
-| q-learning |         45–55 | 0, 0, 4, 0                      |   3.22–3.29 |
-| memory     |            45 | 45, 45, 45, 43                  |   2.91–3.56 |
-
-Accepted lengths average under 3.5 because a rational human never shoves past the best path. An upward
-shove from (13,2) can go at most 3 cells, back to row 10, so longer draws are redrawn there.
-
-The memory agent's two misses are `m16` and `m17` in seed 3: 1- and 2-cell shoves right from the dock, to
-(10,1) and (10,2), which stop short of the rug. Some around-the-rug routes also start by going right along
-row 10, so the filter keeps both groups and picks the more common one (around the rug, −93). A shove of 3 or
-more cells from the dock lands on the rug and is unambiguous.
-
-Earlier runs used Normal(3, 1) (memory 179/180, one miss of the same kind) and Normal(5, 1) (180/180,
-because dock shoves were almost always 3+ cells). Normal lengths cluster within about a cell of the mean;
-near walls, where only 1–2 cells fit, a high mean rarely draws a short enough length, so the shove is skipped
-more often. Uniform lengths avoid that. Their results are in the `shove-mean…` folders under `results/`.
-
-**Validation.** `validate_shove_distance` checks the sampler and the bounds check, and its result is saved for
-every seed. Results for seeds 0–3:
-
-- The raw draws have mean 3.48–3.53 and std 1.70–1.73 (uniform 1–6 should give 3.5 and 1.71). Each length
-  1–6 was drawn 792–874 times out of 5000, within 15% of an even split.
-- 5000 random cells and directions are sampled with the bounds check alone. 4720–4748 shoves were accepted,
-  with lengths 1–6. Every accepted shove landed inside the room, exactly that many cells away.
-- Draws were rejected as `out_of_room` (uniform draws are never `too_short` or `too_long`), and the
-  environment refused every one of those shoves. For normal lengths it also checks `too_short` (below 1)
-  and `too_long` (above 6).
+- On every seed the memory agent found exactly 2 groups, each matching one value of `hurry` perfectly, and
+  every hurried shove chose the hurried group (50/50 per seed).
+- After a hurried shove the baseline leaves the rug and goes around: it reaches the goal every time, with a
+  mean regret of 27–33 after the shove.
+- Seed 2's 3 baseline successes are pushes of 6 cells from (10,1) to (10,7), deep in the rug on the dock's
+  row. From there, crossing straight is the best route even averaged over `hurry`, so the baseline's choice
+  coincides with the hurried optimum.
+- With 30000 episodes, seed 2's Q-learning settled on a not-hurried route 2 steps longer than optimal; 60000
+  is enough on all four seeds.
 
 ### Saved results
 
-Each run of `experiment.py` saves to `results/seed<S>_demos<D>_q<Q>_shove-<lengths>-draws<N>/`, one folder
-per seed and settings. `<lengths>` is `uniform1-6`, or `mean<M>-std<SD>` with `--shove-dist normal`:
+Each run of `experiment.py` saves to `results/seed<S>_q<Q>_human<N>/`, one folder per seed and settings:
 
-- `runs.csv` has one row per run: ID, agent, `hurry`, shove type, placement and length, how the memory agent
-  handled the shove (`filter` or `toward`), return, best possible return, best possible after the shove, and
-  regrets.
-- `settings.json` records the seed, demonstrations, Q-learning episodes, shove-length settings, environment,
-  the memory agent's route groups, the git commit (marked `-dirty` if the code had uncommitted changes) and
-  when it ran.
-- `shove_distance_check.json` holds the validation of the random shove lengths described above.
+- `runs.csv` has one row per run: ID, agent, `hurry`, whether the human was present, the step, direction and
+  length of the shove, where it went, how the memory agent handled it (`filter` or `no-match`), return, best
+  possible return, best possible after the shove, regrets, and whether the goal was reached.
+- `settings.json` records the seed, Q-learning episodes, episodes with the human, the reward mode, the human
+  model, the environment, the memory agent's groups (episodes, hurried and not-hurried counts, distinct
+  transitions, purity), the git commit (marked `-dirty` if the code had uncommitted changes) and when it ran.
 
 Rerunning with the same settings overwrites that folder; the results are deterministic for a given commit.
 Pass `--results-dir DIR` to save somewhere else, or `--no-save` to only print.
 
 ### Replaying runs in the GUI
 
-`experiment.py` prints an ID for every run, `m…` for the memory agent and `q…` for Q-learning (seed 0):
-`m1`–`m4` are the fixed-shove table, `m5`–`m13` the 3-cell random placements, and `m14` onward the
-random-length shoves (likewise for `q`). Pass IDs to the GUI to watch those exact runs (the GUI replays
-seed 0):
+`experiment.py` prints an ID for every run, `m…` for the memory agent and `q…` for Q-learning. For each agent,
+with the default 50 episodes: `1` is not hurried without the human, `2`–`51` not hurried with the human, `52`
+hurried without the human, and `53`–`102` hurried with the human. Each run seeds its own human, so it replays
+exactly. Pass IDs to the GUI to watch those runs (the GUI replays seed 0):
 
 ```bash
-uv run python gui.py --replay m6          # one run
-uv run python gui.py --replay m5 m6 q6    # several; n / p step between them, return replays
+uv run python gui.py --replay m53         # one run
+uv run python gui.py --replay m53 q53     # several; n / p step between them, return replays
 uv run python gui.py --replay m           # every memory-agent run (q: every Q-learning run, all: both)
 ```
 
 The GUI trains its agents with the same seed and settings as `experiment.py`, and its caption shows the
 return the experiment recorded next to the replayed one. `--once` plays the runs and exits, and reports any
-replay whose return differs. `--snapshots DIR` saves PNGs at the start, shove and end of each run. The
-learned Q-table is cached in `.cache/`, so replaying Q-learning runs does not retrain.
+replay whose return differs. `--snapshots DIR` saves PNGs at the start, shove and end of each run. Trained
+agents are cached in `.cache/`, so replaying does not retrain.
 
 ## Known limitations
 
-- Grouping trajectories by return assumes that different latent settings never produce equal optimal
-  returns. That holds here but not in general.
-- A shove that lies on remembered routes from more than one group (such as a short shove along row 10
-  near the dock) is resolved by group frequency, which picks the around-the-rug group.
-- The direction fallback is tested on only two latent groups and one room. A shove that moves the robot
-  equally close to several groups falls back to highest return, which compares returns from different
-  reward functions.
+- **Grouping assumes deterministic rewards:** two episodes disagree if they paid different rewards for the
+  same cell. Noisy rewards would need a tolerance or a statistical test.
+- **Deployment-only framing:** no human in training. The memory agent assumes a correction consists of moves
+  that are best under some group of its experience, i.e. a human who acts optimally for the true conditions.
+- The learner uses fixed ε and α; 30000 episodes was not enough to converge on seed 2, so the default is 60000.
